@@ -38,6 +38,7 @@ class WickedPdf
 
   def initialize(wkhtmltopdf_binary_path = nil)
     @exe_path = wkhtmltopdf_binary_path || find_wkhtmltopdf_binary_path
+
     raise "Location of #{EXE_NAME} unknown" if @exe_path.empty?
     raise "Bad #{EXE_NAME}'s path: #{@exe_path}" unless File.exist?(@exe_path)
     raise "#{EXE_NAME} is not executable" unless File.executable?(@exe_path)
@@ -49,10 +50,14 @@ class WickedPdf
     pdf_from_url("file:///#{filepath}", options)
   end
 
+  def temp_file(file_name)
+    WickedPdfTempfile.new(file_name, WickedPdf.config[:temp_path])
+  end
+
   def pdf_from_string(string, options = {})
     options = options.dup
     options.merge!(WickedPdf.config) { |_key, option, _config| option }
-    string_file = WickedPdfTempfile.new('wicked_pdf.html', options[:temp_path])
+    string_file = temp_file('wicked_pdf.html')
     string_file.binmode
     string_file.write(string)
     string_file.close
@@ -66,7 +71,7 @@ class WickedPdf
   def pdf_from_url(url, options = {})
     # merge in global config options
     options.merge!(WickedPdf.config) { |_key, option, _config| option }
-    generated_pdf_file = WickedPdfTempfile.new('wicked_pdf_generated_file.pdf', options[:temp_path])
+    generated_pdf_file = temp_file('wicked_pdf_generated_file.pdf')
     command = [@exe_path]
     command << '-q' unless on_windows? # suppress errors on stdout
     command += parse_options(options)
@@ -203,7 +208,7 @@ class WickedPdf
       r += make_options(opt_hf, [:line], hf.to_s, :boolean)
       if options[hf] && options[hf][:content]
         @hf_tempfiles = [] unless defined?(@hf_tempfiles)
-        @hf_tempfiles.push(tf = WickedPdfTempfile.new("wicked_#{hf}_pdf.html"))
+        @hf_tempfiles.push(tf = temp_file("wicked_#{hf}_pdf.html"))
         tf.write options[hf][:content]
         tf.flush
         options[hf][:html] = {}
@@ -224,7 +229,7 @@ class WickedPdf
       [valid_option('cover'), arg]
     else # HTML content
       @hf_tempfiles ||= []
-      @hf_tempfiles << tf = WickedPdfTempfile.new('wicked_cover_pdf.html')
+      @hf_tempfiles << tf = temp_file('wicked_cover_pdf.html')
       tf.write arg
       tf.flush
       [valid_option('cover'), tf.path]
